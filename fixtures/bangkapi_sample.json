@@ -1,0 +1,70 @@
+{
+  "metadata": {
+    "name": "synthetic_bangkapi_demo",
+    "center": {"lat": 13.7652, "lng": 100.6431},
+    "note": "Synthetic rows for pipeline smoke tests; not observations from Bangkapi."
+  },
+  "places": [
+    {
+      "id": "fixture-coffee-1",
+      "name": "Sample Coffee A",
+      "category": "coffee",
+      "types": ["cafe"],
+      "location": {"lat": 13.7660, "lng": 100.6434},
+      "rating": 4.1,
+      "user_rating_count": 420,
+      "price_level": "PRICE_LEVEL_MODERATE",
+      "delivery": true,
+      "takeout": true,
+      "closing_hour": 19
+    },
+    {
+      "id": "fixture-coffee-2",
+      "name": "Sample Coffee B",
+      "category": "coffee",
+      "types": ["coffee_shop"],
+      "location": {"lat": 13.7638, "lng": 100.6420},
+      "rating": 4.5,
+      "user_rating_count": 980,
+      "price_level": "PRICE_LEVEL_EXPENSIVE",
+      "delivery": false,
+      "takeout": true,
+      "closing_hour": 21
+    },
+    {
+      "id": "fixture-laundry-1",
+      "name": "Sample Laundry",
+      "category": "laundry",
+      "types": ["laundry"],
+      "location": {"lat": 13.7670, "lng": 100.6442},
+      "rating": 4.0,
+      "user_rating_count": 110,
+      "delivery": false,
+      "takeout": false,
+      "closing_hour": 22
+    },
+    {
+      "id": "fixture-cleaning-1",
+      "name": "Sample Cleaning Service",
+      "category": "cleaning",
+      "types": ["service"],
+      "location": {"lat": 13.7628, "lng": 100.6445},
+      "rating": 4.7,
+      "user_rating_count": 28,
+      "delivery": true,
+      "takeout": false
+    },
+    {
+      "id": "fixture-beauty-1",
+      "name": "Sample Beauty",
+      "category": "beauty",
+      "types": ["beauty_salon"],
+      "location": {"lat": 13.7658, "lng": 100.6470},
+      "rating": 4.3,
+      "user_rating_count": 65,
+      "delivery": false,
+      "takeout": false,
+      "closing_hour": 20
+    }
+  ]
+}

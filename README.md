@@ -7,6 +7,56 @@
 
 Collect business/directory listings (e.g. Yellow Pages style sources) for local research.
 
+## Automated location opportunity analysis
+
+The `location_intelligence` module turns a center point into a bounded,
+evidence-aware comparison of local business categories. It supports a local
+synthetic/JSON fixture first, then an explicit Google Places API (New) mode.
+The output is a JSON contract plus a Markdown report with query coverage,
+expiry, evidence IDs, and a scorecard. Missing demand evidence stays explicit;
+the score is a prioritization aid and is not a sales forecast.
+
+Run the deterministic demo from this repository root:
+
+```bash
+python3 scripts/run_location_analysis.py \
+  --input fixtures/bangkapi_sample.json \
+  --radii 500,1000,3000 \
+  --analysis-radius 1000 \
+  --categories coffee,laundry,cleaning,beauty,pet
+```
+
+It writes `data/location-research/location-analysis.json` and
+`data/location-research/location-analysis.md` (the directory is ignored by
+Git). The default 25-request guard prevents an accidental unbounded run. Use
+`--dry-run` to inspect the request plan without collecting rows.
+
+To call Google Places (New), set `GOOGLE_MAPS_API_KEY` in the process
+environment and opt in explicitly:
+
+```bash
+GOOGLE_MAPS_API_KEY='…' python3 scripts/run_location_analysis.py \
+  --live --lat 13.7652 --lng 100.6431 \
+  --radii 500,1000 --categories coffee,laundry \
+  --max-requests 10
+```
+
+The client requests only the fields needed for the first scorecard and caps
+each Nearby Search at 20 results. It never logs the key or raw provider error
+body. Review Google Maps attribution, caching, and service terms before using
+the live output in a customer-facing product.
+
+The `cleaning` candidate uses Google's broad `service` type because the current
+type table has no dedicated cleaning-service filter. Treat that category as a
+discovery proxy and add a keyword/Text Search or manual verification step before
+using it for a decision.
+
+Run the focused tests with:
+
+```bash
+bash scripts/test_location_intelligence.sh
+```
+
 ## Entry points
 
 - `directories/yellow_pages_scraper.py`
