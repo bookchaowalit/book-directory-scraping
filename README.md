@@ -46,7 +46,13 @@ each Nearby Search at 20 results. It never logs the key or raw provider error
 body (the key is also hidden from the provider's `repr`). HTTP 429/5xx,
 network errors and timeouts are retried at most twice more with 1 s / 2 s
 backoff; other 4xx errors fail immediately. `--max-requests` bounds the query
-plan, so the worst case is `3 x max-requests` billable calls. Review Google Maps attribution, caching, and service terms before using
+plan, so the worst case is `3 x max-requests` billable calls. Each query's HTTP
+attempts are recorded in `collection.query_results[].attempts`, with the total
+in `collection.attempt_count` and the Markdown report, so retries stay visible
+in cost reviews. Reports are written atomically (temp file + `os.replace`), so
+an interrupted run never leaves a half-written JSON/Markdown file. `--lat`/`--lng`
+must be given together and within range; `--budget-thb`/`--hours-per-week`
+cannot be negative. Review Google Maps attribution, caching, and service terms before using
 the live output in a customer-facing product.
 
 The `cleaning` candidate uses Google's broad `service` type because the current

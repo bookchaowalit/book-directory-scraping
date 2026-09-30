@@ -2,7 +2,7 @@
 
 ## Current state
 
-Score: **7.5/10** (pass 1: 6 -> 7; pass 2: 7 -> 7.5) — the stdlib-only
+Score: **8/10** (pass 1: 6 -> 7; pass 2: 7 -> 7.5; pass 3: 7.5 -> 8) — the stdlib-only
 location-intelligence pipeline is bounded, fixture-tested, retries Google
 Places transient errors safely, and has lint + offline CI. No dead legacy code
 remains; edge cases (missing fields, all queries failing) are covered.
@@ -15,11 +15,14 @@ remains; edge cases (missing fields, all queries failing) are covered.
 ### P1
 - Add a pagination-aware Text Search mode for the `cleaning` proxy category
   instead of the broad `service` type (README already flags this).
-- Cache live Places responses per (center, radius, category) for the allowed
-  Google caching window so re-runs do not re-bill identical queries.
+- Cache live Places responses per (center, radius, category) so re-runs do
+  not re-bill identical queries. Blocked on a terms review: Google Maps
+  Platform only allows caching `place_id` indefinitely and lat/lng for up to
+  30 days; other fields must not be cached. Implement as a place_id/lat-lng
+  cache only, or not at all.
 
 ### P2
-- Record retry counts in `query_results` for cost visibility.
+- Add a `--max-attempts` CLI knob (retries are fixed at 3 attempts today).
 
 ## Done in this pass (pass 1)
 - `GooglePlacesProvider`: bounded retry with backoff on 429/5xx/network
@@ -38,3 +41,13 @@ remains; edge cases (missing fields, all queries failing) are covered.
 - `tests/test_edge_cases.py`: `normalize_place` with missing location/id/name/
   types and malformed numbers, plus an all-errored collection feeding
   `analyze_categories` (12 -> 17 tests).
+
+## Done in this pass (pass 3)
+- Reports written atomically (`location_intelligence/atomic_io.py`: temp file
+  + fsync + `os.replace`); both outputs are rendered before either is written.
+- Billable-attempt accounting: `GooglePlacesProvider.last_attempts`,
+  per-query `query_results[].attempts`, `collection.attempt_count` in JSON and
+  Markdown, `http_attempts` in the CLI summary (was P2).
+- CLI validation: `--lat`/`--lng` ranges and pairing, non-negative
+  `--budget-thb`, `--hours-per-week` 0-168.
+- `tests/test_pass3_hardening.py` (17 -> 28 tests incl. parametrised).

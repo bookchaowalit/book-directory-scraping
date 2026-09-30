@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
+
+from .atomic_io import write_text_atomic
 
 
 def build_report(
@@ -32,6 +35,7 @@ def build_report(
             "collected_at": collection["collected_at"],
             "expires_at": _latest_expiry(collection.get("records", [])),
             "request_count": collection["request_count"],
+            "attempt_count": collection.get("attempt_count", collection["request_count"]),
             "query_plan": collection["query_plan"],
             "query_results": collection["query_results"],
             "errors": collection["errors"],
@@ -91,6 +95,7 @@ def render_markdown(report: dict[str, Any]) -> str:
             "## Collection notes",
             "",
             f"- Query requests: `{collection['request_count']}`",
+            f"- HTTP attempts incl. retries: `{collection.get('attempt_count', collection['request_count'])}`",
             f"- Unique places retained: `{len(report['places'])}`",
             f"- Data expiry: `{collection['expires_at'] or 'not available'}`",
             f"- {collection['coverage_warning']}",
@@ -106,12 +111,13 @@ def render_markdown(report: dict[str, Any]) -> str:
 
 
 def write_report(report: dict[str, Any], output_dir: str) -> tuple[str, str]:
-    from pathlib import Path
+    """Write both outputs atomically; both are rendered before either is written."""
 
     path = Path(output_dir)
-    path.mkdir(parents=True, exist_ok=True)
     json_path = path / "location-analysis.json"
     markdown_path = path / "location-analysis.md"
-    json_path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    markdown_path.write_text(render_markdown(report), encoding="utf-8")
+    json_text = json.dumps(report, ensure_ascii=False, indent=2) + "\n"
+    markdown_text = render_markdown(report)
+    write_text_atomic(json_path, json_text)
+    write_text_atomic(markdown_path, markdown_text)
     return str(json_path), str(markdown_path)

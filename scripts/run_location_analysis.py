@@ -86,6 +86,18 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("use either --input or --live, not both")
     if not args.live and not args.input:
         parser.error("--input is required unless --live is used")
+    if args.lat is not None and not -90 <= args.lat <= 90:
+        parser.error("--lat must be between -90 and 90")
+    if args.lng is not None and not -180 <= args.lng <= 180:
+        parser.error("--lng must be between -180 and 180")
+    if (args.lat is None) != (args.lng is None):
+        parser.error("--lat and --lng must be given together")
+    for name in ("budget_thb", "hours_per_week"):
+        value = getattr(args, name)
+        if value is not None and value < 0:
+            parser.error(f"--{name.replace('_', '-')} cannot be negative")
+    if args.hours_per_week is not None and args.hours_per_week > 168:
+        parser.error("--hours-per-week cannot exceed 168")
     if args.max_results < 1 or args.max_results > 20:
         parser.error("--max-results must be between 1 and 20")
     if args.max_requests < 1:
@@ -154,6 +166,7 @@ def main(argv: list[str] | None = None) -> int:
         "source": collection["source"],
         "places": len(collection["records"]),
         "requests": collection["request_count"],
+        "http_attempts": collection["attempt_count"],
         "json": json_path,
         "markdown": markdown_path,
         "errors": len(collection["errors"]),
