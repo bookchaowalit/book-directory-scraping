@@ -67,9 +67,14 @@ CI (`.github/workflows/ci.yml`) runs lint, tests and a `--dry-run` plan.
 ## Entry points
 
 - `scripts/run_location_analysis.py` — location opportunity analysis (active, stdlib-only).
-- `directories/yellow_pages_scraper.py` — legacy prototype; it imports the old
-  monorepo `adapters`/`core` packages and does not run from a standalone
-  checkout.
+
+The former `directories/yellow_pages_scraper.py` prototype was removed in the
+2026-09 upgrade pass: it imported the retired monorepo `adapters`/`core`
+packages, never ran from a standalone checkout, used unverified selectors, and
+would have bulk-collected business phone numbers. Business discovery is served
+by the Google Places / fixture providers in `location_intelligence/`. Recover
+it from Git history if a directory source is ever needed again, and add a
+privacy note before porting.
 
 ## Stack
 
