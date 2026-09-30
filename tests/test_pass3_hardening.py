@@ -123,6 +123,11 @@ def test_write_report_does_not_touch_files_when_rendering_fails(tmp_path):
         ["--lat", "13"],
         ["--budget-thb", "-1"],
         ["--hours-per-week", "169"],
+        # float() accepts these and NaN passes every range comparison.
+        ["--analysis-radius", "nan"],
+        ["--radii", "500,nan"],
+        ["--budget-thb", "nan"],
+        ["--hours-per-week", "inf"],
     ],
 )
 def test_cli_rejects_out_of_range_inputs(extra):

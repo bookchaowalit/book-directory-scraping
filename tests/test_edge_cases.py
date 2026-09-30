@@ -93,3 +93,13 @@ def test_nan_closing_hour_is_not_evidence() -> None:
     scorecards = analyze_categories([row], radius_m=500, categories=(COFFEE,))
     assert scorecards[0]["business_count"] == 1
     assert scorecards[0]["dimensions"]["convenience_gap"] is None
+
+
+def test_infinite_or_negative_review_count_is_missing() -> None:
+    base = {"id": "p1", "displayName": "Cafe", "lat": 13.76, "lng": 100.64}
+    # int(inf) raises OverflowError; it used to abort normalization.
+    assert _norm({**base, "userRatingCount": float("inf")})["user_rating_count"] is None
+    row = _norm({**base, "userRatingCount": -5})
+    assert row["user_rating_count"] is None
+    # A negative total would make the demand score's sqrt raise.
+    analyze_categories([row], radius_m=1000, categories=(COFFEE,))

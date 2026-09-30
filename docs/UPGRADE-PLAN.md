@@ -54,3 +54,9 @@ remains; edge cases (missing fields, all queries failing) are covered.
 - `models._float` treats NaN/inf as missing: NaN coordinates produced
   records with NaN lat/lng (invalid JSON) and a NaN `closing_hour` counted
   as evidence of no convenience gap (`tests/test_edge_cases.py`, 2 tests).
+- Number edge cases: `models._int` let `int(inf)` raise `OverflowError`
+  (aborting normalization) and kept negative review counts (the demand
+  score's `math.sqrt` then raised); both are now missing. CLI float options
+  (`--lat/--lng/--analysis-radius/--budget-thb/--hours-per-week/--radii`) use
+  `_finite_float`: "nan" passed every range check. Regression tests in
+  `tests/test_edge_cases.py` and `tests/test_pass3_hardening.py`.

@@ -110,10 +110,17 @@ def _float(value: Any) -> float | None:
 
 
 def _int(value: Any) -> int | None:
+    """Parse a non-negative count; inf/NaN/negative are treated as missing.
+
+    ``int(float("inf"))`` raises ``OverflowError`` (it used to abort the
+    whole normalization), and a negative review total made the demand score's
+    ``math.sqrt`` fail.
+    """
     try:
-        return int(value) if value not in (None, "") else None
-    except (TypeError, ValueError):
+        number = int(value) if value not in (None, "") else None
+    except (TypeError, ValueError, OverflowError):
         return None
+    return number if number is not None and number >= 0 else None
 
 
 def _location(raw: dict[str, Any]) -> tuple[float, float] | None:

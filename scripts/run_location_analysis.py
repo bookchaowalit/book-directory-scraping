@@ -15,6 +15,7 @@ Examples:
 from __future__ import annotations
 
 import argparse
+import math
 import json
 import os
 from pathlib import Path
@@ -34,11 +35,23 @@ from location_intelligence.providers import (
 from location_intelligence.report import build_report, write_report
 
 
+def _finite_float(value: str) -> float:
+    """argparse type: ``float()`` accepts "nan"/"inf", which pass every range
+    check (NaN compares False) and then poison radii, budgets and scores."""
+    try:
+        number = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be a number") from exc
+    if not math.isfinite(number):
+        raise argparse.ArgumentTypeError("must be a finite number")
+    return number
+
+
 def _csv_floats(value: str) -> list[float]:
     try:
-        values = [float(item.strip()) for item in value.split(",") if item.strip()]
-    except ValueError as exc:
-        raise argparse.ArgumentTypeError("must be comma-separated numbers") from exc
+        values = [_finite_float(item.strip()) for item in value.split(",") if item.strip()]
+    except argparse.ArgumentTypeError as exc:
+        raise argparse.ArgumentTypeError("must be comma-separated finite numbers") from exc
     if not values:
         raise argparse.ArgumentTypeError("at least one value is required")
     if any(item <= 0 or item > 50_000 for item in values):
@@ -69,17 +82,17 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", help="Fixture JSON path; required unless --live is used")
     parser.add_argument("--live", action="store_true", help="Call Google Places API (New)")
-    parser.add_argument("--lat", type=float)
-    parser.add_argument("--lng", type=float)
+    parser.add_argument("--lat", type=_finite_float)
+    parser.add_argument("--lng", type=_finite_float)
     parser.add_argument("--radii", type=_csv_floats, default=[500.0, 1000.0, 3000.0])
-    parser.add_argument("--analysis-radius", type=float, default=1000.0)
+    parser.add_argument("--analysis-radius", type=_finite_float, default=1000.0)
     parser.add_argument("--categories", type=_categories, default=DEFAULT_CATEGORIES)
     parser.add_argument("--max-results", type=int, default=20)
     parser.add_argument("--max-requests", type=int, default=25)
     parser.add_argument("--rank", choices=("POPULARITY", "DISTANCE"), default="POPULARITY")
     parser.add_argument("--output-dir", default="data/location-research")
-    parser.add_argument("--budget-thb", type=float)
-    parser.add_argument("--hours-per-week", type=float)
+    parser.add_argument("--budget-thb", type=_finite_float)
+    parser.add_argument("--hours-per-week", type=_finite_float)
     parser.add_argument("--dry-run", action="store_true", help="Print the bounded query plan only")
     args = parser.parse_args(argv)
     if args.live and args.input:
