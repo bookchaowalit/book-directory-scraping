@@ -1,10 +1,17 @@
 from __future__ import annotations
 
 import json
+import io
 from pathlib import Path
 import tempfile
 import unittest
+from contextlib import redirect_stdout
+import sys
 from unittest.mock import patch
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "scripts"))
 
 from location_intelligence.analysis import analyze_categories
 from location_intelligence.models import CandidateCategory, SearchRequest, haversine_m
@@ -12,7 +19,8 @@ from location_intelligence.providers import FixtureProvider, GooglePlacesProvide
 from location_intelligence.report import build_report, render_markdown, write_report
 
 
-ROOT = Path(__file__).resolve().parents[1]
+from run_location_analysis import main as location_main
+
 FIXTURE = ROOT / "fixtures" / "bangkapi_sample.json"
 CATEGORIES = (
     CandidateCategory("coffee", ("cafe", "coffee_shop"), ("coffee", "กาแฟ")),
@@ -147,6 +155,29 @@ class LocationIntelligenceTests(unittest.TestCase):
             payload = json.loads(Path(json_path).read_text(encoding="utf-8"))
             self.assertEqual(payload["schema_version"], "location-opportunity.v1")
             self.assertTrue(Path(markdown_path).is_file())
+
+    def test_dry_run_prints_plan_without_provider_call(self) -> None:
+        output = io.StringIO()
+        with redirect_stdout(output):
+            self.assertEqual(
+                location_main(
+                    [
+                        "--input",
+                        str(FIXTURE),
+                        "--dry-run",
+                        "--radii",
+                        "500,1000",
+                        "--categories",
+                        "coffee",
+                        "--max-requests",
+                        "2",
+                    ]
+                ),
+                0,
+            )
+        report = json.loads(output.getvalue())
+        self.assertTrue(report["within_limit"])
+        self.assertGreater(report["request_count"], 0)
 
 
 if __name__ == "__main__":
