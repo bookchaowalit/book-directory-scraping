@@ -77,3 +77,19 @@ def test_all_queries_errored_is_partial_and_scores_nothing() -> None:
     assert cards[0]["score"] is None
     assert cards[0]["status"] == "validate_demand"
     assert cards[0]["business_count"] == 0
+
+
+def test_non_finite_numbers_are_treated_as_missing() -> None:
+    assert _norm({"id": "p1", "name": "Cafe", "lat": "NaN", "lng": 100.64}) is None
+    assert _norm({"id": "p1", "name": "Cafe", "lat": 13.76, "lng": float("inf")}) is None
+    row = _norm({"id": "p1", "name": "Cafe", "lat": 13.76, "lng": 100.64, "rating": "nan", "closing_hour": "inf"})
+    assert row is not None
+    assert row["rating"] is None
+    assert row["closing_hour"] is None
+
+
+def test_nan_closing_hour_is_not_evidence() -> None:
+    row = _norm({"id": "p1", "name": "Cafe", "lat": 13.76, "lng": 100.64, "types": ["cafe"], "closing_hour": "nan"})
+    scorecards = analyze_categories([row], radius_m=500, categories=(COFFEE,))
+    assert scorecards[0]["business_count"] == 1
+    assert scorecards[0]["dimensions"]["convenience_gap"] is None

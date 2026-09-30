@@ -96,10 +96,17 @@ def _text(value: Any) -> str:
 
 
 def _float(value: Any) -> float | None:
+    """Parse a finite number; NaN/inf are treated as missing.
+
+    ``float("NaN")`` succeeds: NaN coordinates produced records with NaN
+    ``lat``/``lng`` (not valid JSON), and a NaN ``closing_hour`` fails
+    ``< 20`` so it counted as evidence of *no* convenience gap.
+    """
     try:
-        return float(value) if value not in (None, "") else None
+        number = float(value) if value not in (None, "") else None
     except (TypeError, ValueError):
         return None
+    return number if number is not None and math.isfinite(number) else None
 
 
 def _int(value: Any) -> int | None:

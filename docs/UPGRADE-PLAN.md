@@ -51,3 +51,6 @@ remains; edge cases (missing fields, all queries failing) are covered.
 - CLI validation: `--lat`/`--lng` ranges and pairing, non-negative
   `--budget-thb`, `--hours-per-week` 0-168.
 - `tests/test_pass3_hardening.py` (17 -> 28 tests incl. parametrised).
+- `models._float` treats NaN/inf as missing: NaN coordinates produced
+  records with NaN lat/lng (invalid JSON) and a NaN `closing_hour` counted
+  as evidence of no convenience gap (`tests/test_edge_cases.py`, 2 tests).
