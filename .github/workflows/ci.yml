@@ -1,0 +1,28 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install check tools (runtime is stdlib-only)
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest ruff
+      - name: Lint
+        run: ruff check .
+      - name: Offline tests (fixtures and mocked provider only)
+        run: python -m pytest -q
+      - name: Dry-run plan smoke test
+        run: python scripts/run_location_analysis.py --input fixtures/bangkapi_sample.json --radii 500,1000 --categories coffee,laundry --dry-run

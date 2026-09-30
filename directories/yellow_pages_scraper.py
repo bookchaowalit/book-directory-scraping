@@ -9,7 +9,6 @@ Data: name, category, address, phone, website, URL
 
 import asyncio
 import logging
-import re
 import sys
 from pathlib import Path
 from typing import List, Optional

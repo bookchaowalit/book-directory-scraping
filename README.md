@@ -43,7 +43,10 @@ GOOGLE_MAPS_API_KEY='…' python3 scripts/run_location_analysis.py \
 
 The client requests only the fields needed for the first scorecard and caps
 each Nearby Search at 20 results. It never logs the key or raw provider error
-body. Review Google Maps attribution, caching, and service terms before using
+body (the key is also hidden from the provider's `repr`). HTTP 429/5xx,
+network errors and timeouts are retried at most twice more with 1 s / 2 s
+backoff; other 4xx errors fail immediately. `--max-requests` bounds the query
+plan, so the worst case is `3 x max-requests` billable calls. Review Google Maps attribution, caching, and service terms before using
 the live output in a customer-facing product.
 
 The `cleaning` candidate uses Google's broad `service` type because the current
@@ -51,29 +54,26 @@ type table has no dedicated cleaning-service filter. Treat that category as a
 discovery proxy and add a keyword/Text Search or manual verification step before
 using it for a decision.
 
-Run the focused tests with:
+Run the offline checks (no network; the Google client is mocked) with:
 
 ```bash
-bash scripts/test_location_intelligence.sh
+pip install pytest ruff
+ruff check .
+python -m pytest -q          # or: bash scripts/test_location_intelligence.sh
 ```
+
+CI (`.github/workflows/ci.yml`) runs lint, tests and a `--dry-run` plan.
 
 ## Entry points
 
-- `directories/yellow_pages_scraper.py`
+- `scripts/run_location_analysis.py` — location opportunity analysis (active, stdlib-only).
+- `directories/yellow_pages_scraper.py` — legacy prototype; it imports the old
+  monorepo `adapters`/`core` packages and does not run from a standalone
+  checkout.
 
 ## Stack
 
-Python scraper module(s)
-
-## How to run (local)
-
-```bash
-# From this repository root
-python3 -m venv .venv && source .venv/bin/activate
-# Install whatever deps the script imports (often requests/httpx/bs4).
-# Prefer reading the scraper module docstring/imports first — no lockfile yet.
-python3 directories/yellow_pages_scraper.py
-```
+Python 3.10+ standard library (`pyproject.toml` has no runtime dependencies).
 
 ## Boundaries
 

@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
+import time
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -72,10 +73,17 @@ class FixtureProvider:
 class GooglePlacesProvider:
     """Minimal stdlib client for Places API (New) Nearby Search."""
 
-    api_key: str
+    api_key: str = field(repr=False)
     timeout_s: float = 20.0
     source_name: str = "google_places_new"
     endpoint: str = "https://places.googleapis.com/v1/places:searchNearby"
+    # Transient failures (429/5xx, network errors, timeouts) are retried with
+    # exponential backoff; each retry is a billable request, so keep it small.
+    max_attempts: int = 3
+    backoff_s: float = 1.0
+    sleep: Callable[[float], None] = field(default=time.sleep, repr=False)
+
+    RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
 
     FIELD_MASK = ",".join(
         (
@@ -123,17 +131,36 @@ class GooglePlacesProvider:
             },
             method="POST",
         )
-        try:
-            with urlopen(request_obj, timeout=self.timeout_s) as response:
-                payload = json.loads(response.read().decode("utf-8"))
-        except HTTPError as exc:
-            raise ProviderError(f"Google Places request failed with HTTP {exc.code}") from exc
-        except (URLError, TimeoutError, json.JSONDecodeError) as exc:
-            raise ProviderError(f"Google Places request failed: {type(exc).__name__}") from exc
+        payload = self._send(request_obj)
+        if not isinstance(payload, dict):
+            raise ProviderError("Google Places response was not a JSON object")
         places = payload.get("places", [])
         if not isinstance(places, list):
             raise ProviderError("Google Places response did not contain a places list")
         return [row for row in places if isinstance(row, dict)]
+
+
+    def _send(self, request_obj: Request) -> Any:
+        """POST with bounded retries; errors never include the key or body."""
+
+        attempts = max(1, int(self.max_attempts))
+        for attempt in range(1, attempts + 1):
+            try:
+                with urlopen(request_obj, timeout=self.timeout_s) as response:
+                    raw = response.read()
+            except HTTPError as exc:
+                if exc.code not in self.RETRYABLE_STATUS or attempt == attempts:
+                    raise ProviderError(f"Google Places request failed with HTTP {exc.code}") from exc
+            except (URLError, TimeoutError) as exc:
+                if attempt == attempts:
+                    raise ProviderError(f"Google Places request failed: {type(exc).__name__}") from exc
+            else:
+                try:
+                    return json.loads(raw.decode("utf-8"))
+                except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                    raise ProviderError(f"Google Places request failed: {type(exc).__name__}") from exc
+            self.sleep(self.backoff_s * (2 ** (attempt - 1)))
+        raise ProviderError("Google Places request failed")  # pragma: no cover
 
 
 def build_query_plan(
