@@ -43,7 +43,16 @@ GOOGLE_MAPS_API_KEY='…' python3 scripts/run_location_analysis.py \
 
 The client requests only the fields needed for the first scorecard and caps
 each Nearby Search at 20 results. It never logs the key or raw provider error
-body. Review Google Maps attribution, caching, and service terms before using
+body (the key is also hidden from the provider's `repr`). HTTP 429/5xx,
+network errors and timeouts are retried at most twice more with 1 s / 2 s
+backoff; other 4xx errors fail immediately. `--max-requests` bounds the query
+plan, so the worst case is `3 x max-requests` billable calls. Each query's HTTP
+attempts are recorded in `collection.query_results[].attempts`, with the total
+in `collection.attempt_count` and the Markdown report, so retries stay visible
+in cost reviews. Reports are written atomically (temp file + `os.replace`), so
+an interrupted run never leaves a half-written JSON/Markdown file. `--lat`/`--lng`
+must be given together and within range; `--budget-thb`/`--hours-per-week`
+cannot be negative. Review Google Maps attribution, caching, and service terms before using
 the live output in a customer-facing product.
 
 The `cleaning` candidate uses Google's broad `service` type because the current
@@ -51,29 +60,31 @@ type table has no dedicated cleaning-service filter. Treat that category as a
 discovery proxy and add a keyword/Text Search or manual verification step before
 using it for a decision.
 
-Run the focused tests with:
+Run the offline checks (no network; the Google client is mocked) with:
 
 ```bash
-bash scripts/test_location_intelligence.sh
+pip install pytest ruff
+ruff check .
+python -m pytest -q          # or: bash scripts/test_location_intelligence.sh
 ```
+
+CI (`.github/workflows/ci.yml`) runs lint, tests and a `--dry-run` plan.
 
 ## Entry points
 
-- `directories/yellow_pages_scraper.py`
+- `scripts/run_location_analysis.py` — location opportunity analysis (active, stdlib-only).
+
+The former `directories/yellow_pages_scraper.py` prototype was removed in the
+2026-09 upgrade pass: it imported the retired monorepo `adapters`/`core`
+packages, never ran from a standalone checkout, used unverified selectors, and
+would have bulk-collected business phone numbers. Business discovery is served
+by the Google Places / fixture providers in `location_intelligence/`. Recover
+it from Git history if a directory source is ever needed again, and add a
+privacy note before porting.
 
 ## Stack
 
-Python scraper module(s)
-
-## How to run (local)
-
-```bash
-# From this repository root
-python3 -m venv .venv && source .venv/bin/activate
-# Install whatever deps the script imports (often requests/httpx/bs4).
-# Prefer reading the scraper module docstring/imports first — no lockfile yet.
-python3 directories/yellow_pages_scraper.py
-```
+Python 3.10+ standard library (`pyproject.toml` has no runtime dependencies).
 
 ## Boundaries
 

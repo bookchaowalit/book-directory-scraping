@@ -29,15 +29,16 @@ See `README.md` for install and run instructions when present.
 
 ## Purpose
 
-Collect business/directory listings (e.g. Yellow Pages style sources) for local research.
+Bounded local business discovery (Google Places or offline fixtures) and
+location opportunity analysis for local research.
 
 ## Entry points
 
-- `directories/yellow_pages_scraper.py`
+- `scripts/run_location_analysis.py` (the legacy Yellow Pages prototype was removed; see README)
 
 ## Stack
 
-Python scraper module(s)
+Python 3.10+ standard library
 
 ## How to run (local)
 

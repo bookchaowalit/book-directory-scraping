@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
+import time
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -72,10 +73,19 @@ class FixtureProvider:
 class GooglePlacesProvider:
     """Minimal stdlib client for Places API (New) Nearby Search."""
 
-    api_key: str
+    api_key: str = field(repr=False)
     timeout_s: float = 20.0
     source_name: str = "google_places_new"
     endpoint: str = "https://places.googleapis.com/v1/places:searchNearby"
+    # Transient failures (429/5xx, network errors, timeouts) are retried with
+    # exponential backoff; each retry is a billable request, so keep it small.
+    max_attempts: int = 3
+    backoff_s: float = 1.0
+    sleep: Callable[[float], None] = field(default=time.sleep, repr=False)
+    # HTTP attempts made by the most recent ``search`` (each one is billable).
+    last_attempts: int = field(default=0, init=False, repr=False)
+
+    RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
 
     FIELD_MASK = ",".join(
         (
@@ -98,6 +108,7 @@ class GooglePlacesProvider:
     )
 
     def search(self, request: SearchRequest) -> list[dict[str, Any]]:
+        self.last_attempts = 0
         if not self.api_key.strip():
             raise ProviderError("GOOGLE_MAPS_API_KEY is empty")
         body = {
@@ -123,17 +134,43 @@ class GooglePlacesProvider:
             },
             method="POST",
         )
-        try:
-            with urlopen(request_obj, timeout=self.timeout_s) as response:
-                payload = json.loads(response.read().decode("utf-8"))
-        except HTTPError as exc:
-            raise ProviderError(f"Google Places request failed with HTTP {exc.code}") from exc
-        except (URLError, TimeoutError, json.JSONDecodeError) as exc:
-            raise ProviderError(f"Google Places request failed: {type(exc).__name__}") from exc
+        payload = self._send(request_obj)
+        if not isinstance(payload, dict):
+            raise ProviderError("Google Places response was not a JSON object")
         places = payload.get("places", [])
         if not isinstance(places, list):
             raise ProviderError("Google Places response did not contain a places list")
         return [row for row in places if isinstance(row, dict)]
+
+    def _send(self, request_obj: Request) -> Any:
+        """POST with bounded retries; errors never include the key or body."""
+
+        attempts = max(1, int(self.max_attempts))
+        for attempt in range(1, attempts + 1):
+            self.last_attempts = attempt
+            try:
+                with urlopen(request_obj, timeout=self.timeout_s) as response:
+                    raw = response.read()
+            except HTTPError as exc:
+                if exc.code not in self.RETRYABLE_STATUS or attempt == attempts:
+                    raise ProviderError(f"Google Places request failed with HTTP {exc.code}") from exc
+            except (URLError, TimeoutError) as exc:
+                if attempt == attempts:
+                    raise ProviderError(f"Google Places request failed: {type(exc).__name__}") from exc
+            else:
+                try:
+                    return json.loads(raw.decode("utf-8"))
+                except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                    raise ProviderError(f"Google Places request failed: {type(exc).__name__}") from exc
+            self.sleep(self.backoff_s * (2 ** (attempt - 1)))
+        raise ProviderError("Google Places request failed")  # pragma: no cover
+
+
+def _attempts_used(provider: Any) -> int:
+    """HTTP attempts behind the last ``search`` call (1 for providers without retries)."""
+
+    value = getattr(provider, "last_attempts", None)
+    return value if isinstance(value, int) and value > 0 else 1
 
 
 def build_query_plan(
@@ -190,9 +227,12 @@ def collect_places(
     by_id: dict[str, dict[str, Any]] = {}
     query_results: list[dict[str, Any]] = []
     errors: list[dict[str, Any]] = []
+    attempt_count = 0
     for request in plan:
         try:
             raw_rows = provider.search(request)
+            attempts = _attempts_used(provider)
+            attempt_count += attempts
             normalized = [
                 normalize_place(
                     row,
@@ -223,9 +263,12 @@ def collect_places(
                     "category": request.category.name,
                     "result_count": len(normalized),
                     "status": "ok",
+                    "attempts": attempts,
                 }
             )
         except ProviderError as exc:
+            attempts = _attempts_used(provider)
+            attempt_count += attempts
             errors.append(
                 {
                     "radius_m": request.radius_m,
@@ -239,6 +282,7 @@ def collect_places(
                     "category": request.category.name,
                     "result_count": 0,
                     "status": "error",
+                    "attempts": attempts,
                 }
             )
     return {
@@ -257,6 +301,7 @@ def collect_places(
         "errors": errors,
         "status": "partial" if errors else "success",
         "request_count": len(plan),
+        "attempt_count": attempt_count,
         "source": provider.source_name,
         "collected_at": captured,
     }
